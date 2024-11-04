@@ -1,0 +1,13 @@
+name: nlp-qual-um
+channels:
+  - conda-forge
+dependencies:
+# python management
+  - python=3.11.*
+  - wheel
+  - pip
+  - setuptools
+
+# dependency management
+  - poetry=1.8.*
+prefix: /Users/maxspad/mambaforge/envs/nlp-qual-um
