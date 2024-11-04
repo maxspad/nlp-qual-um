@@ -9,7 +9,7 @@ Upgrading nlp-qual to use more modern MLops tooling.
 - Data wrangling: pandas
 - Dependency management: poetry
 - Notebooking: jupyterlab, streamlit
-- Configuration: hydra
+- Configuration: hydra vs pydantic-settings
 - Orchestration: ??
 - ML: Huggingface/pytorch
 - Hyperparam tuning: ray tune
