@@ -119,7 +119,7 @@ def main(cfg : MakeDataSetConfig):
 
     # output the result
     log.info(f'Saving to {cfg.output_path}')
-    masterdb.to_excel(cfg.output_path)
+    masterdb.to_csv(cfg.output_path, index=False)
 
 if __name__ == '__main__':
     cfg = MakeDataSetConfig()

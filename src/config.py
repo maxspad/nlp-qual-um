@@ -1,15 +1,14 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Config(BaseSettings):
+    model_config = SettingsConfigDict(cli_parse_args=True)
     log_level : str = "INFO"
 
 class MakeDataSetConfig(Config):
-    model_config = SettingsConfigDict(cli_parse_args=True)
-
     masterdb_path : str = "data/raw/masterdbFromRobMac.xlsx"
     mac_path : str = "data/raw/mcmaster-database-de-identified-comments.xlsx"
     sas_path : str = "data/raw/sask-database-de-identified-comments.xlsx"
-    output_path : str = "data/interim/maxterdbforNLP.xlsx"
+    output_path : str = "data/interim/masterdbforNLP.csv"
 
     q1_condense : bool = True
     q1_condense_col_name : str = "Q1c"
@@ -21,3 +20,16 @@ class MakeDataSetConfig(Config):
     qual_condense_col_name : str = "QUALc"
     
     text_var: str = "comment"
+
+class SplitTrainTestConfig(Config):
+    dataset_path : str = 'data/interim/masterdbforNLP.csv'
+    output_dir : str = 'data/processed'
+    train_path : str = output_dir + '/train.csv'
+    test_path : str = output_dir + '/test.csv'
+    test_size : float = 0.2
+    random_state : int = 43
+
+class TrainConfig(Config):
+    train_path : str = 'data/processed/train.csv' 
+    text_col : str = 'comment'
+    target_col : str = 'Q2i'
