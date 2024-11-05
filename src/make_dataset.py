@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
+import datasets
 
 import logging
 logging.basicConfig()
@@ -91,35 +92,55 @@ def main(cfg : MakeDataSetConfig):
 
     # create modified targets
     log.info('Modifying targets...')
-    if cfg.q1_condense:
-        masterdb[cfg.q1_condense_col_name] = masterdb['Q1'].replace({
-            0: 0,
-            1: 0,
-            2: 0,
-            3: 1
-        })
-    if cfg.q2_invert:
-        masterdb[cfg.q2_invert_col_name] = masterdb['Q2'] * -1 + 1
-    if cfg.q3_invert:
-        masterdb[cfg.q3_invert_col_name] = masterdb['Q3'] * -1 + 1
-    if cfg.qual_condense:
-        # if q1 <= 2, 0
-        # if q1 >= 2, q2 = 0, 1
-        # if q1 >= 2, q2 = 1, 2
-        masterdb[cfg.qual_condense_col_name] = (masterdb['Q1'] >= 3).astype('int') # 0 if <= 2, 1 otherwise
-        q1_gt2 = masterdb[cfg.qual_condense_col_name]
-        masterdb.loc[q1_gt2, cfg.qual_condense_col_name] = (
-            masterdb.loc[q1_gt2, cfg.qual_condense_col_name] +
-            masterdb.loc[q1_gt2, 'Q2']
-        )
-        masterdb[cfg.qual_condense_col_name] = masterdb[cfg.qual_condense_col_name].astype('int')
+    masterdb[cfg.q1_condense_col_name] = masterdb['Q1'].replace({
+        0: 0,
+        1: 0,
+        2: 0,
+        3: 1
+    })
+    masterdb[cfg.q2_invert_col_name] = masterdb['Q2'] * -1 + 1
+    masterdb[cfg.q3_invert_col_name] = masterdb['Q3'] * -1 + 1
+
+    # if q1 <= 2, 0
+    # if q1 >= 2, q2 = 0, 1
+    # if q1 >= 2, q2 = 1, 2
+    masterdb[cfg.qual_condense_col_name] = (masterdb['Q1'] >= 3).astype('int') # 0 if <= 2, 1 otherwise
+    q1_gt2 = masterdb[cfg.qual_condense_col_name]
+    masterdb.loc[q1_gt2, cfg.qual_condense_col_name] = (
+        masterdb.loc[q1_gt2, cfg.qual_condense_col_name] +
+        masterdb.loc[q1_gt2, 'Q2']
+    )
+    masterdb[cfg.qual_condense_col_name] = masterdb[cfg.qual_condense_col_name].astype('int')
 
     log.info(f'Changing nan comments ({masterdb[cfg.text_var].isna().sum()}) to blanks...')
     masterdb[cfg.text_var] = masterdb[cfg.text_var].fillna('blank')
 
+    # create HF Datasets
+    log.info('Creating HF datasets')
+    ds = datasets.Dataset.from_pandas(masterdb)
+    nf = ds.features.copy()
+    nf[cfg.q1_col_name] = datasets.ClassLabel(num_classes=4, names=cfg.q1_level_names)
+    nf[cfg.q2_col_name] = datasets.ClassLabel(num_classes=2, names=cfg.q2_level_names)
+    nf[cfg.q3_col_name] = datasets.ClassLabel(num_classes=2, names=cfg.q3_level_names)
+    nf[cfg.qual_col_name] = datasets.ClassLabel(num_classes=6)
+    nf[cfg.q1_condense_col_name] = datasets.ClassLabel(num_classes=2, names=cfg.q1_condense_level_names)
+    nf[cfg.q2_invert_col_name] = datasets.ClassLabel(num_classes=2, names=cfg.q2_level_names[::-1])
+    nf[cfg.q3_invert_col_name] = datasets.ClassLabel(num_classes=2, names=cfg.q3_level_names[::-1])
+    nf[cfg.qual_condense_col_name] = datasets.ClassLabel(num_classes=3)
+    ds = ds.cast(nf)
+
+    # split train and test
+    log.info(f'Splitting datset with test_size {cfg.test_size}')
+    ds_split = ds.train_test_split(test_size=cfg.test_size, seed=cfg.random_seed)
+
     # output the result
-    log.info(f'Saving to {cfg.output_path}')
-    masterdb.to_csv(cfg.output_path, index=False)
+    log.info(f'Saving to {cfg.dataset_folder}')
+    ds_split.save_to_disk(cfg.dataset_folder)
+    
+    if cfg.save_csvs:
+        log.info(f'Saving CSVs to {cfg.output_folder}')
+        ds_split['train'].to_csv(cfg.train_csv_fn)
+        ds_split['test'].to_csv(cfg.test_csv_fn)
 
 if __name__ == '__main__':
     cfg = MakeDataSetConfig()
