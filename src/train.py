@@ -30,28 +30,29 @@ def main(cfg : TrainConfig):
 
     log.info(f'Tokenizing')
     tokenizer = AutoTokenizer.from_pretrained('distilbert/distilbert-base-uncased')
-    ds_tok = ds.map(lambda x: tokenizer(x['texts'], padding='max_length', truncation=True))
+    ds_tok = ds.map(lambda x: tokenizer(x['texts'], padding='max_length', truncation=True, max_length=50))
     log.info(f'Loading model')
     model = AutoModelForSequenceClassification.from_pretrained('distilbert/distilbert-base-uncased')
     
     training_args = TrainingArguments(
-        output_dir='test_output_dir'
+        output_dir='test_output_dir',
+        eval_strategy='epoch'
     )
 
-    metric = evaluate.load('accuracy')
+    metric = evaluate.combine(['accuracy', 'f1', 'hyperml/balanced_accuracy','matthews_correlation'])
     def compute_metrics(eval_pred):
         logits, labels = eval_pred
         predictions = np.argmax(logits, axis=-1)
-        return metric.compute(predictions=predictions, references=labels)
+        res = metric.compute(predictions=predictions, references=labels)
+        print('result is:', res)
+        return res
 
     trainer = Trainer(
         model=model,
         args=training_args,
-        #data_collator=DataCollatorWithPadding(tokenizer, padding=True),
-        # processing_class=tokenizer,
-        train_dataset=ds_tok['train'],
-        eval_dataset=ds_tok['test'],
-        compute_metrics=compute_metrics
+        train_dataset=ds_tok['train'],# .shuffle(seed=cfg.random_seed).select(range(200)),
+        eval_dataset=ds_tok['test'],#.shuffle(seed=cfg.random_seed).select(range(100)),
+        compute_metrics=compute_metrics,
     )
 
     trainer.train()

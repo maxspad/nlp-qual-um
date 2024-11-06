@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Config(BaseSettings):
     model_config = SettingsConfigDict(cli_parse_args=True)
     log_level : str = "INFO"
+    random_seed : int = 43
 
 class MakeDataSetConfig(Config):
     # inputs
@@ -20,7 +21,6 @@ class MakeDataSetConfig(Config):
     test_csv_fn : str = output_folder + "/test.csv"
 
     test_size : float = 0.2
-    random_seed : int = 43
 
     text_var : str = 'comment'
 
