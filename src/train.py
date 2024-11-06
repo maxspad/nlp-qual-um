@@ -28,16 +28,26 @@ def main(cfg : TrainConfig):
     ds = ds.select_columns([cfg.text_col, cfg.target_col])
     ds = ds.rename_columns({cfg.text_col: 'texts', cfg.target_col: 'labels'})
 
+    model_str = cfg.hf_model_family + '/' + cfg.hf_model_name
+
     log.info(f'Tokenizing')
-    tokenizer = AutoTokenizer.from_pretrained('distilbert/distilbert-base-uncased')
-    ds_tok = ds.map(lambda x: tokenizer(x['texts'], padding='max_length', truncation=True, max_length=50))
+    tokenizer = AutoTokenizer.from_pretrained(model_str)
+
+    # figure out max length
+    if cfg.smoke_test:
+        max_length = 25 # small number for rapid testing
+    elif cfg.max_length == 'model_max_length':
+        max_length = tokenizer.model_max_length
+    else:
+        max_length = cfg.max_length
+    log.info(f'Max length will be: {max_length}')
+
+    ds_tok = ds.map(lambda x: tokenizer(x['texts'], padding='max_length', truncation=True, max_length=max_length))
+
     log.info(f'Loading model')
-    model = AutoModelForSequenceClassification.from_pretrained('distilbert/distilbert-base-uncased')
+    model = AutoModelForSequenceClassification.from_pretrained(model_str)
     
-    training_args = TrainingArguments(
-        output_dir='test_output_dir',
-        eval_strategy='epoch'
-    )
+    training_args = TrainingArguments(**cfg.trainer_args.model_dump())
 
     metric = evaluate.combine(['accuracy', 'f1', 'hyperml/balanced_accuracy','matthews_correlation'])
     def compute_metrics(eval_pred):
@@ -46,13 +56,19 @@ def main(cfg : TrainConfig):
         res = metric.compute(predictions=predictions, references=labels)
         print('result is:', res)
         return res
+    
+    ds_tok_train = ds_tok['train']
+    ds_tok_test = ds_tok['test']
+    if cfg.smoke_test:
+        ds_tok_train = ds_tok_train.shuffle(seed=cfg.random_seed).select(range(100)) # small number for rapid testing
+        ds_tok_test = ds_tok_test.shuffle(seed=cfg.random_seed).select(range(25))
 
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=ds_tok['train'],# .shuffle(seed=cfg.random_seed).select(range(200)),
-        eval_dataset=ds_tok['test'],#.shuffle(seed=cfg.random_seed).select(range(100)),
-        compute_metrics=compute_metrics,
+        train_dataset=ds_tok_train,
+        eval_dataset=ds_tok_test,
+        compute_metrics=compute_metrics
     )
 
     trainer.train()
