@@ -8,10 +8,10 @@ from transformers import (AutoTokenizer,
                           AutoModelForSequenceClassification,
                           TrainingArguments,
                           Trainer,
-                          DataCollatorWithPadding)
+                          pipeline)
+import mlflow
 
 import logging
-import evaluate
 logging.basicConfig()
 log = logging.getLogger(__name__)
 
@@ -71,7 +71,36 @@ def main(cfg : TrainConfig):
         compute_metrics=compute_metrics
     )
 
-    trainer.train()
+    mlflow.set_experiment(cfg.mlflow_experiment_name)
+    with mlflow.start_run() as run:
+        trainer.train()
+
+    tuned_pipeline = pipeline(
+        task='text-classification',
+        model=trainer.model,
+        batch_size=cfg.trainer_args.per_device_eval_batch_size,
+        tokenizer=tokenizer,
+    )
+    signature = mlflow.models.infer_signature(
+        ['this is text1', 'this is text2'],
+        mlflow.transformers.generate_signature_output(
+            tuned_pipeline, ['This is a response','so is this']
+        ),
+        params={}
+    )
+    # with mlflow.start_run(run_id=run.info.run_id):
+    mlflow.log_text(cfg.model_dump_json(), 'model_cfg.json')
+    model_info = mlflow.transformers.log_model(
+        transformers_model=tuned_pipeline,
+        artifact_path=cfg.trainer_args.output_dir,
+        signature=signature,
+        input_example=['pass in a string','no really, do it'],
+        model_config={}
+    )
+
+    loaded = mlflow.transformers.load_model(model_uri=model_info.model_uri)
+    validation_text = 'this is a test'
+    print(loaded(validation_text))
 
 if __name__ == '__main__':
     cfg = TrainConfig()

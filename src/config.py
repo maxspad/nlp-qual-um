@@ -185,3 +185,5 @@ class TrainConfig(Config):
 
     trainer_args : TrainerArgs = TrainerArgs()
 
+    mlflow_experiment_name : str = 'scratch'
+
