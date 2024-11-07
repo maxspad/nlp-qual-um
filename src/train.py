@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 
 def main(cfg : TrainConfig):
-    log.info('Traning model...')
+    log.info('Training model...')
     log.debug(f'Parameters:\n{cfg.model_dump()}')
 
     log.info(f'Loading dataset from {cfg.dataset_path}')
@@ -29,12 +29,13 @@ def main(cfg : TrainConfig):
     ds = ds.rename_columns({cfg.text_col: 'texts', cfg.target_col: 'labels'})
 
     model_str = cfg.hf_model_family + '/' + cfg.hf_model_name
+    log.info(f'Model is: {model_str}')
 
     log.info(f'Tokenizing')
     tokenizer = AutoTokenizer.from_pretrained(model_str)
-
     # figure out max length
     if cfg.smoke_test:
+        log.warning('--SMOKE TEST--')
         max_length = 25 # small number for rapid testing
     elif cfg.max_length == 'model_max_length':
         max_length = tokenizer.model_max_length
@@ -48,13 +49,14 @@ def main(cfg : TrainConfig):
     model = AutoModelForSequenceClassification.from_pretrained(model_str)
     
     training_args = TrainingArguments(**cfg.trainer_args.model_dump())
+    log.info(f'HF Output directory: {cfg.trainer_args.output_dir}')
+    log.debug(f'Training args:\n{training_args}')
 
     metric = evaluate.combine(['accuracy', 'f1', 'hyperml/balanced_accuracy','matthews_correlation'])
     def compute_metrics(eval_pred):
         logits, labels = eval_pred
         predictions = np.argmax(logits, axis=-1)
         res = metric.compute(predictions=predictions, references=labels)
-        print('result is:', res)
         return res
     
     ds_tok_train = ds_tok['train']
@@ -71,36 +73,38 @@ def main(cfg : TrainConfig):
         compute_metrics=compute_metrics
     )
 
+    log.info(f'Using mlflow experiment {cfg.mlflow_experiment_name}')
     mlflow.set_experiment(cfg.mlflow_experiment_name)
     with mlflow.start_run() as run:
+        mlflow.log_text(cfg.model_dump_json(), 'model_cfg.json')
         trainer.train()
 
-    tuned_pipeline = pipeline(
-        task='text-classification',
-        model=trainer.model,
-        batch_size=cfg.trainer_args.per_device_eval_batch_size,
-        tokenizer=tokenizer,
-    )
-    signature = mlflow.models.infer_signature(
-        ['this is text1', 'this is text2'],
-        mlflow.transformers.generate_signature_output(
-            tuned_pipeline, ['This is a response','so is this']
-        ),
-        params={}
-    )
-    # with mlflow.start_run(run_id=run.info.run_id):
-    mlflow.log_text(cfg.model_dump_json(), 'model_cfg.json')
-    model_info = mlflow.transformers.log_model(
-        transformers_model=tuned_pipeline,
-        artifact_path=cfg.trainer_args.output_dir,
-        signature=signature,
-        input_example=['pass in a string','no really, do it'],
-        model_config={}
-    )
+    if cfg.log_mlflow_model:
+        tuned_pipeline = pipeline(
+            task='text-classification',
+            model=trainer.model,
+            batch_size=cfg.trainer_args.per_device_eval_batch_size,
+            tokenizer=tokenizer,
+        )
+        signature = mlflow.models.infer_signature(
+            ['this is text1', 'this is text2'],
+            mlflow.transformers.generate_signature_output(
+                tuned_pipeline, ['This is a response','so is this']
+            ),
+            params={}
+        )
+        model_info = mlflow.transformers.log_model(
+            transformers_model=tuned_pipeline,
+            artifact_path=cfg.trainer_args.output_dir,
+            signature=signature,
+            input_example=['pass in a string','no really, do it'],
+            model_config={}
+        )
 
-    loaded = mlflow.transformers.load_model(model_uri=model_info.model_uri)
-    validation_text = 'this is a test'
-    print(loaded(validation_text))
+    if cfg.validate_mlflow_model:
+        loaded = mlflow.transformers.load_model(model_uri=model_info.model_uri)
+        validation_text = 'this is a test'
+        print(loaded(validation_text))
 
 if __name__ == '__main__':
     cfg = TrainConfig()

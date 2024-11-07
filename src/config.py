@@ -185,5 +185,12 @@ class TrainConfig(Config):
 
     trainer_args : TrainerArgs = TrainerArgs()
 
+    mlflow_dir : str = 'mlruns/'
     mlflow_experiment_name : str = 'scratch'
+
+    reload_model_after_training : bool = False
+    log_mlflow_model : bool = False
+    validate_mlflow_model : bool = False
+
+
 
