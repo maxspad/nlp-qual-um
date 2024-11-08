@@ -181,10 +181,8 @@ class TrainConfig(Config):
     hf_model_family : str = 'distilbert'
     hf_model_name : str = 'distilbert-base-uncased'
 
-    max_length : Union[Literal['model_max_length'], int] = 'model_max_length'
-
-    trainer_args : TrainerArgs = TrainerArgs()
-
+    tokenizer_max_length : Union[Literal['model_max_length'], int] = 'model_max_length'
+   
     mlflow_dir : str = 'mlruns/'
     mlflow_experiment_name : str = 'scratch'
 
@@ -192,5 +190,15 @@ class TrainConfig(Config):
     log_mlflow_model : bool = False
     validate_mlflow_model : bool = False
 
+    # if n_folds is not None, do k-fold cross validation
+    n_folds : Optional[int] = None
+    # otherwise, if eval_size is not None, use an eval set of size eval_size
+    eval_size : Optional[float] = None
 
+    metrics : list[str] = [
+        'accuracy', 'f1', 
+        'hyperml/balanced_accuracy', 
+        'matthews_correlation'
+    ]
 
+    trainer_args : TrainerArgs = TrainerArgs()
