@@ -40,7 +40,7 @@ class MakeDataSetConfig(Config):
     q3_invert_col_name : str = "Q3i"
     qual_condense_col_name : str = "QUALc"
 
-class TrainerArgs(BaseModel):
+class TrainerArgs(BaseModel, cli_ignore_unknown_args=True):
 
     output_dir : str = 'hf_training_outputs'
     overwrite_output_dir : bool = False
@@ -202,3 +202,9 @@ class TrainConfig(Config):
     ]
 
     trainer_args : TrainerArgs = TrainerArgs()
+
+class TrainConfigNoCLI(TrainConfig):
+    '''This is a hack used to get around the fact that you can't instantiate
+    CLI pydantic-settings classes in jupyter notebooks'''
+    model_config = SettingsConfigDict(cli_parse_args=False)
+    

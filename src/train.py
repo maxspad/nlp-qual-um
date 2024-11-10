@@ -1,5 +1,5 @@
 import mlflow.types
-from config import TrainConfig
+from .config import TrainConfig, TrainConfigNoCLI
 
 import pandas as pd
 import numpy as np
@@ -16,16 +16,10 @@ from dataclasses import dataclass
 import logging
 from typing import Union, Callable, Any
 
+from ray import train as raytrain
+
 logging.basicConfig()
 log = logging.getLogger(__name__)
-
-# def train_model(
-#     model_str : str,
-#     train_args : TrainingArguments,
-#     train_dataset : datasets.Dataset,
-#     eval_dataset : datasets.Dataset,
-#     metrics_func : Callable[]
-# )
 
 def load_train_dataset(cfg : TrainConfig) -> datasets.Dataset:
     log.info(f'Loading dataset from {cfg.dataset_path}')
@@ -63,12 +57,14 @@ def get_model(model_str : str) -> AutoModelForSequenceClassification:
     log.info(f'Loading model {model_str}')
     return AutoModelForSequenceClassification.from_pretrained(model_str)
 
-def make_compute_metrics_func(metrics : list[str]) -> Callable[[dict], dict]:
+def make_compute_metrics_func(metrics : list[str], use_ray : bool = False) -> Callable[[dict], dict]:
     metric = evaluate.combine(metrics)
     def compute_metrics(eval_pred : dict) -> dict:
         logits, labels = eval_pred
         predictions = np.argmax(logits, axis=-1)
         res = metric.compute(predictions=predictions, references=labels)
+        if use_ray:
+            raytrain.report(res)
         return res
     return compute_metrics
 
@@ -145,7 +141,13 @@ def validate_mlflow_model(model_info):
     validation_text = 'this is a test'
     log.info(f'Model output: {loaded(validation_text)}')
 
-def main(cfg : TrainConfig):
+def train(cfg : Union[TrainConfig,dict[str, Any]]):
+    if type(cfg) == dict:
+        # convert this back to a TrainConfig
+        # probably coming from Ray
+        cfg = TrainConfigNoCLI.model_validate(cfg)
+
+    log.setLevel(cfg.log_level)
     log.info('Training model...')
     log.debug(f'Parameters:\n{cfg.model_dump()}')
 
@@ -159,14 +161,13 @@ def main(cfg : TrainConfig):
     model_str = cfg.hf_model_family + '/' + cfg.hf_model_name
     log.info(f'Model is: {model_str}')
 
-    # get the tokenizer
+    # get the tokenizer and tokenize
     log.info(f'Tokenizing')
     tokenizer = get_tokenizer(model_str)
-
     tok_func = make_tok_func(cfg, tokenizer)
-
     ds_train_tok = tokenize(ds_train, tok_func)
 
+    # get the model
     model = get_model(model_str)
 
     training_args = TrainingArguments(**cfg.trainer_args.model_dump())
@@ -181,13 +182,15 @@ def main(cfg : TrainConfig):
         ds_tok_eval = ds_tok_eval.shuffle(seed=cfg.random_seed).select(range(25))
 
     training_res = train_model(cfg, model, training_args, ds_tok_train, ds_tok_eval, compute_metrics)
-
     if cfg.log_mlflow_model:
         model_info = log_mlflow_model(training_res, tokenizer)
         if cfg.validate_mlflow_model:
             validate_mlflow_model(model_info=model_info)
 
+    return training_res
+
+    
+
 if __name__ == '__main__':
     cfg = TrainConfig()
-    log.setLevel(cfg.log_level)
-    main(cfg)
+    train(cfg)
