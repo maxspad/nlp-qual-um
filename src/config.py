@@ -177,6 +177,8 @@ class TrainConfig(Config):
     target_col : str = 'Q2i'
 
     smoke_test : bool = False
+    smoke_test_train_size : int = 100
+    smoke_test_eval_size : int = 25
 
     hf_model_family : str = 'distilbert'
     hf_model_name : str = 'distilbert-base-uncased'
@@ -207,4 +209,6 @@ class TrainConfigNoCLI(TrainConfig):
     '''This is a hack used to get around the fact that you can't instantiate
     CLI pydantic-settings classes in jupyter notebooks'''
     model_config = SettingsConfigDict(cli_parse_args=False)
+
+
     
