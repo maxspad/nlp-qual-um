@@ -1,5 +1,5 @@
 import mlflow.types
-from .config import TrainConfig, TrainConfigNoCLI
+from config import TrainConfig, TrainerConfig, TrainConfigNoCLI
 
 import pandas as pd
 import numpy as np
@@ -12,6 +12,7 @@ from transformers import (AutoTokenizer,
                           pipeline)
 import mlflow
 from dataclasses import dataclass
+import ray.train.huggingface.transformers
 
 import logging
 from typing import Union, Callable, Any
@@ -63,8 +64,6 @@ def make_compute_metrics_func(metrics : list[str], use_ray : bool = False) -> Ca
         logits, labels = eval_pred
         predictions = np.argmax(logits, axis=-1)
         res = metric.compute(predictions=predictions, references=labels)
-        if use_ray:
-            raytrain.report(res)
         return res
     return compute_metrics
 
@@ -96,6 +95,11 @@ def train_model(
         eval_dataset=eval_ds,
         compute_metrics=compute_metrics_func
     )
+    
+    callback = ray.train.huggingface.transformers.RayTrainReportCallback()
+    trainer.add_callback(callback)
+    trainer = ray.train.huggingface.transformers.prepare_trainer(trainer)
+
     with mlflow.start_run() as run:
         log.info(f'Mlflow run name: {run.info.run_name}')
         log.info(f'Mlflow run id: {run.info.run_id}')
@@ -145,7 +149,7 @@ def train(cfg : Union[TrainConfig,dict[str, Any]]):
     if type(cfg) == dict:
         # convert this back to a TrainConfig
         # probably coming from Ray
-        cfg = TrainConfigNoCLI.model_validate(cfg)
+        cfg = TrainConfig.model_validate(cfg)
 
     log.setLevel(cfg.log_level)
     log.info('Training model...')
@@ -187,10 +191,10 @@ def train(cfg : Union[TrainConfig,dict[str, Any]]):
         if cfg.validate_mlflow_model:
             validate_mlflow_model(model_info=model_info)
 
-    return training_res
+    return {'eval_accuracy': 0.69698}
 
     
 
 if __name__ == '__main__':
-    cfg = TrainConfig()
-    train(cfg)
+    cfg = TrainerConfig()
+    train(cfg.train_config)

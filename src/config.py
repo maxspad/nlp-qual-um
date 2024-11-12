@@ -4,10 +4,12 @@ from typing import Union, Literal, Optional, Any, List
 
 class Config(BaseSettings):
     model_config = SettingsConfigDict(cli_parse_args=True)
+
+class MakeDataSetConfig(Config):
+
     log_level : str = "INFO"
     random_seed : int = 43
 
-class MakeDataSetConfig(Config):
     # inputs
     masterdb_path : str = "data/raw/masterdbFromRobMac.xlsx"
     mac_path : str = "data/raw/mcmaster-database-de-identified-comments.xlsx"
@@ -170,7 +172,11 @@ class TrainerArgs(BaseModel, cli_ignore_unknown_args=True):
     use_liger_kernel : bool = False
 
 
-class TrainConfig(Config):
+class TrainConfig(BaseModel):
+
+    log_level : str = "INFO"
+    random_seed : int = 43
+
     dataset_path : str = 'data/processed/hf_dataset'
     
     text_col : str = 'comment'
@@ -203,8 +209,16 @@ class TrainConfig(Config):
 
     trainer_args : TrainerArgs = TrainerArgs()
 
+class TrainerConfig(Config):
+
+    train_config : TrainConfig = TrainConfig()
+
 class TrainConfigNoCLI(TrainConfig):
     '''This is a hack used to get around the fact that you can't instantiate
     CLI pydantic-settings classes in jupyter notebooks'''
     model_config = SettingsConfigDict(cli_parse_args=False)
+
+class RayTrainerConfig(Config):
+    
+    train_config : TrainConfig = TrainConfig()
     
