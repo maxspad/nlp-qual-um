@@ -1,5 +1,6 @@
 data/
 __pycache__
 mlruns/
+mlartifacts/
 ray_results/
 hf_training_outputs/

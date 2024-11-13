@@ -13,14 +13,25 @@ from transformers import (AutoTokenizer,
 import mlflow
 from dataclasses import dataclass
 import ray.train.huggingface.transformers
+from transformers import TrainerCallback, TrainerState, TrainerControl
 
 import logging
 from typing import Union, Callable, Any
-
+from ray.air.integrations.mlflow import setup_mlflow
 from ray import train as raytrain
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
+
+class MyCallback(TrainerCallback):
+
+    def on_evaluate(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+        print('on_evaluate')
+        metrics = {}
+        for log in state.log_history:
+            print(log)
+            metrics.update(log)
+        raytrain.report(metrics=metrics)
 
 def load_train_dataset(cfg : TrainConfig) -> datasets.Dataset:
     log.info(f'Loading dataset from {cfg.dataset_path}')
@@ -86,7 +97,13 @@ def train_model(
 ) -> TrainResult:
 
     log.info(f'Using mlflow experiment {cfg.mlflow_experiment_name}')
-    mlflow.set_experiment(cfg.mlflow_experiment_name)
+    print(mlflow)
+    print(mlflow.get_tracking_uri())
+    print(mlflow.get_artifact_uri())
+    # # print(mlflow)
+    # mlflow.set_tracking_uri('~/proj/nlp_qual/nlp-qual-um/mlruns')
+    # print(mlflow.get_tracking_uri())
+    # mlflow.set_experiment(cfg.mlflow_experiment_name)
 
     trainer = Trainer(
         model=model,
@@ -95,24 +112,23 @@ def train_model(
         eval_dataset=eval_ds,
         compute_metrics=compute_metrics_func
     )
-    
-    callback = ray.train.huggingface.transformers.RayTrainReportCallback()
-    trainer.add_callback(callback)
-    trainer = ray.train.huggingface.transformers.prepare_trainer(trainer)
+    # trainer.add_callback(MyCallback)
+    # callback = ray.train.huggingface.transformers.RayTrainReportCallback()
+    # trainer.add_callback(callback)
+    # trainer = ray.train.huggingface.transformers.prepare_trainer(trainer)
+    # with mlflow.start_run() as run:
+    # log.info(f'Mlflow run name: {run.info.run_name}')
+    # log.info(f'Mlflow run id: {run.info.run_id}')
+    # log.info(f'MLflow artifact URI: {run.info.artifact_uri}')
+    # Log all the things
+    mlflow.log_param('TrainConfig', cfg.model_dump())
+    mlflow.log_param('TrainerArgs', cfg.trainer_args.model_dump())
+    mlflow.log_text(cfg.model_dump_json(), 'TrainConfig.json')
+    mlflow.log_text(cfg.trainer_args.model_dump_json(), 'TrainerArgs.json')
 
-    with mlflow.start_run() as run:
-        log.info(f'Mlflow run name: {run.info.run_name}')
-        log.info(f'Mlflow run id: {run.info.run_id}')
-
-        # Log all the things
-        mlflow.log_param('TrainConfig', cfg.model_dump())
-        mlflow.log_param('TrainerArgs', cfg.trainer_args.model_dump())
-        mlflow.log_text(cfg.model_dump_json(), 'TrainConfig.json')
-        mlflow.log_text(cfg.trainer_args.model_dump_json(), 'TrainerArgs.json')
-
-        # train
-        trainer.train()    
-    return TrainResult(mlflow_run=run, trainer=trainer)
+    # train
+    trainer.train()    
+    # return TrainResult(mlflow_run=run, trainer=trainer)
 
 def log_mlflow_model(res : TrainResult, tok : AutoTokenizer):
     tuned_pipeline = pipeline(
@@ -154,6 +170,13 @@ def train(cfg : Union[TrainConfig,dict[str, Any]]):
     log.setLevel(cfg.log_level)
     log.info('Training model...')
     log.debug(f'Parameters:\n{cfg.model_dump()}')
+
+    setup_mlflow(
+        config=cfg.model_dump(),
+        tracking_uri='~/proj/nlp_qual/nlp-qual-um/mlruns',
+        experiment_name=cfg.mlflow_experiment_name,
+        create_experiment_if_not_exists=True
+    )
 
     # load dataset
     ds_train = load_train_dataset(cfg)

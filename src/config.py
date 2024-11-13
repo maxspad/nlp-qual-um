@@ -105,6 +105,8 @@ class TrainerArgs(BaseModel, cli_ignore_unknown_args=True):
     dataloader_num_workers : int = 0
     past_index : int = -1
 
+    log_level : str = 'passive'
+
     run_name : str = output_dir
     disable_tqdm : Optional[bool] = None
     remove_unused_columns : bool = False
@@ -190,8 +192,8 @@ class TrainConfig(BaseModel):
     tokenizer_max_length : Union[Literal['model_max_length'], int] = 'model_max_length'
    
     mlflow_dir : str = 'mlruns/'
-    mlflow_experiment_name : str = 'scratch'
-
+    mlflow_experiment_name : str = 'scratch4'
+    
     reload_model_after_training : bool = False
     log_mlflow_model : bool = False
     validate_mlflow_model : bool = False
