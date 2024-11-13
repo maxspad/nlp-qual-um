@@ -1,52 +1,27 @@
-from ray import tune, train
+# Ray
 import ray
+from ray import tune, train
+
+# mlflow
 import mlflow
-from config import RayTrainerConfig, TrainConfig
-import train as tr
+
 from transformers import Trainer, TrainingArguments
 from transformers import TrainerCallback
 from transformers.integrations import MLflowCallback
-from ray.train.huggingface.transformers import RayTrainReportCallback
-import transformers.trainer
 import logging
-import shutil
-from ray.train import Checkpoint
-from pathlib import Path
-from tempfile import TemporaryDirectory
+
+from config import RayTrainerConfig, TrainConfig
+import train as tr
+import train_helpers as th
+
 logging.basicConfig()
 log = logging.getLogger(__name__)
 
-class MyCallback(TrainerCallback):
-    CHECKPOINT_NAME = "checkpoint"
-
-    def on_evaluate(self, args: TrainingArguments, state: tr.TrainerState, control: tr.TrainerControl, **kwargs):
-        log.debug('MyCallback: on_evaluate')
-        log.debug(f'MyCallback: state.log_history:\n{state.log_history}')
-        with TemporaryDirectory() as tmpdir:
-            metrics = {}
-            for blah in state.log_history:
-                metrics.update(blah)
-
-            log.debug(f'MyCallback: checkpoint tmpdir: {tmpdir}')
-            # Copy ckpt files and construct a Ray Train Checkpoint
-            source_ckpt_path = transformers.trainer.get_last_checkpoint(args.output_dir)
-            if source_ckpt_path is not None:
-                target_ckpt_path = Path(tmpdir, self.CHECKPOINT_NAME).as_posix()
-                shutil.copytree(source_ckpt_path, target_ckpt_path)
-                checkpoint = Checkpoint.from_directory(tmpdir)
-            else:
-                checkpoint = None
-            mlflow.log_metrics(metrics=metrics, step=state.global_step)
-            train.report(metrics=metrics, checkpoint=checkpoint)
-
-    def on_save(self, args: TrainingArguments, state: tr.TrainerState, control: tr.TrainerControl, **kwargs):
-        log.debug('MyCallback: on_save')
-
 def setup_mlflow(cfg : TrainConfig):
     log.debug('Setting up mlflow')
-    log.debug(f'Setting up mlflow: tracking URI: {cfg.mlflow_dir}')
+    log.debug(f'Setting up mlflow: tracking URI: {cfg.mlflow_tracking_uri}')
     log.debug(f'Setting up mlflow: experiment name: {cfg.mlflow_experiment_name}')
-    mlflow.set_tracking_uri(cfg.mlflow_dir)
+    mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
     mlflow.set_experiment(cfg.mlflow_experiment_name)
 
 def train_mlflow(config : dict):
@@ -56,7 +31,8 @@ def train_mlflow(config : dict):
         cfg = config
     log.setLevel(cfg.log_level)
 
-    # log.debug(f'Parameters:\n{cfg.model_dump()}')
+    log.debug('train_mlflow')
+    log.debug(f'train_mlflow: parameters:\n{cfg.model_dump()}')
     
     setup_mlflow(cfg)
 
@@ -78,7 +54,6 @@ def train_mlflow(config : dict):
     model = tr.get_model(model_str)
 
     training_args = TrainingArguments(**cfg.trainer_args.model_dump())
-    # log.debug(f'Training args:\n{training_args}')
 
     compute_metrics = tr.make_compute_metrics_func(cfg.metrics, use_ray=False)
 
@@ -95,12 +70,15 @@ def train_mlflow(config : dict):
         eval_dataset=ds_tok_eval,
         compute_metrics=compute_metrics
     )
-    trainer.add_callback(MyCallback())
+    trainer.add_callback(th.RayMLFlowCallback())
+    # Remove the huggingface native mlflow callback, it interferes
+    # with our custom logging
     print(trainer.pop_callback(MLflowCallback))
+
     log.info('Starting mlflow run...')
     log.debug(f'MLFlow tracking URI: {mlflow.get_tracking_uri()}')
     with mlflow.start_run() as run:
-        log.debug(f'Run info: {run.info}')
+        log.debug(f'MLFlow run info: {run.info}')
         mlflow.log_params(cfg.model_dump())
         prefix_trainer_args = {'trainer_args.'+k : v for k,v in cfg.trainer_args.model_dump().items()}
         mlflow.log_params(prefix_trainer_args)
@@ -112,40 +90,23 @@ def train_mlflow(config : dict):
 
         metrics = trainer.evaluate()
         mlflow.log_metrics(metrics)
-    # train.report(metrics)
-    # print(f'***METRICS: {metrics}')
-    # return metrics
 
 if __name__ == '__main__':
     cfg = RayTrainerConfig()
+    print(cfg.run_config) 
 
     ray.init()
+
+    train_config = cfg.train_config
     
-    param_space = cfg.train_config
-    param_space.log_level = 'DEBUG'
-    # param_space.trainer_args.num_train_epochs = tune.randint(1,3)
-    param_space.trainer_args.num_train_epochs = 1
-    param_space.smoke_test = True
-    param_space.mlflow_dir = 'http://127.0.0.1:5000'
-    param_space.dataset_path = '/Users/maxspad/proj/nlp_qual/nlp-qual-um/data/processed/hf_dataset/'
-    param_space.trainer_args.log_level='debug'
-    # param_space.trainer_args.disable_tqdm=False
-    mlflow.set_tracking_uri(param_space.mlflow_dir)
-    mlflow.set_experiment(cfg.train_config.mlflow_experiment_name)
-    # train_mlflow(param_space)
+    mlflow.set_tracking_uri(train_config.mlflow_tracking_uri)
+    mlflow.set_experiment(train_config.mlflow_experiment_name)
+
     tuner = tune.Tuner(
         train_mlflow,
-        param_space=param_space.model_dump(),
-        tune_config=tune.TuneConfig(
-            mode='max',
-            metric='eval_accuracy',
-            num_samples=3
-        ),
-        run_config=train.RunConfig(
-            name='stupidtrain',
-            storage_path='~/proj/nlp_qual/nlp-qual-um/stupid-ray-results',
-            verbose=0
-        )
+        param_space=train_config.model_dump(),
+        tune_config=tune.TuneConfig(**cfg.tune_config.model_dump()),
+        run_config=train.RunConfig(**cfg.run_config.model_dump())
     )
     results = tuner.fit()
-    print(results)
+

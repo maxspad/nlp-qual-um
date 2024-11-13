@@ -1,9 +1,10 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import BaseModel
-from typing import Union, Literal, Optional, Any, List
+from typing import Union, Literal, Optional, Any, List, Callable 
 
 class Config(BaseSettings):
-    model_config = SettingsConfigDict(cli_parse_args=True)
+    model_config = SettingsConfigDict(cli_parse_args=True,
+                                      env_nested_delimiter='__')
 
 class MakeDataSetConfig(Config):
 
@@ -191,8 +192,8 @@ class TrainConfig(BaseModel):
 
     tokenizer_max_length : Union[Literal['model_max_length'], int] = 'model_max_length'
    
-    mlflow_dir : str = 'mlruns/'
-    mlflow_experiment_name : str = 'scratch4'
+    mlflow_tracking_uri : str = './mlruns/'
+    mlflow_experiment_name : str = 'scratch'
     
     reload_model_after_training : bool = False
     log_mlflow_model : bool = False
@@ -220,7 +221,28 @@ class TrainConfigNoCLI(TrainConfig):
     CLI pydantic-settings classes in jupyter notebooks'''
     model_config = SettingsConfigDict(cli_parse_args=False)
 
+class RayRunConfig(BaseModel):
+    name : str | None = None
+    storage_path : str | None = None
+    verbose : int = 1
+    log_to_file : bool = False
+
+class RayTuneConfig(BaseModel):
+    mode : str | None = None
+    metric : str | None = None
+    num_samples : int = 1
+    max_concurrent_trials : int | None = None
+    time_budget_s : int | float | None = None
+    reuse_actors : bool = False
+    trial_name_creator : Callable | None = None
+    trial_dirname_creator : Callable | None = None
+
 class RayTrainerConfig(Config):
     
-    train_config : TrainConfig = TrainConfig()
+    train_config : TrainConfig = TrainConfig(
+        dataset_path='/Users/maxspad/proj/nlp_qual/nlp-qual-um/data/processed/hf_dataset'
+    )
+    tune_config : RayTuneConfig = RayTuneConfig()
+    run_config : RayRunConfig = RayRunConfig()
+
     
