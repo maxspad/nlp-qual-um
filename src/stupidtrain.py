@@ -99,11 +99,14 @@ if __name__ == '__main__':
 
     train_config = cfg.train_config
     
+    train_config.trainer_args.num_train_epochs = tune.randint(1,4)
+    train_config.trainer_args.learning_rate = tune.loguniform(1e-5, 1e-1)
+
     mlflow.set_tracking_uri(train_config.mlflow_tracking_uri)
     mlflow.set_experiment(train_config.mlflow_experiment_name)
 
     tuner = tune.Tuner(
-        train_mlflow,
+        tune.with_resources(train_mlflow, resources={'gpu': 1}),
         param_space=train_config.model_dump(),
         tune_config=tune.TuneConfig(**cfg.tune_config.model_dump()),
         run_config=train.RunConfig(**cfg.run_config.model_dump())
