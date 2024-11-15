@@ -9,6 +9,6 @@
 #SBATCH --output=%x.log
 
 #conda activate conda/nlp-qual-um
-srun -n 1 mlflow server -h 0.0.0.0
+srun -n 1 mlflow server -h 0.0.0.0 --backend-store-uri sqlite:///mlruns.db
 
 
