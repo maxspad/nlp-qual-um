@@ -89,8 +89,9 @@ class TrainConfig(Config):
 
     trainer_args : PydanticTrainingArguments = PydanticTrainingArguments(
         output_dir='hf_output_dir',
-        evaluation_strategy='epoch',
-        save_strategy='no'
+        eval_strategy='epoch',
+        save_strategy='no',
+        evaluation_strategy='epoch'
     )
 
 
