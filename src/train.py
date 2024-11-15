@@ -168,7 +168,7 @@ def train(cfg : Union[TrainConfig,dict[str, Any]]):
     # get the model
     model = get_model(model_str)
 
-    training_args = cfg.trainer_args
+    training_args = TrainingArguments(**cfg.trainer_args.model_dump())
     log.info(f'HF Output directory: {cfg.trainer_args.output_dir}')
     log.debug(f'Training args:\n{training_args}')
 

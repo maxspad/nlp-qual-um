@@ -46,9 +46,43 @@ class MakeDataSetConfig(Config):
     q3_invert_col_name : str = "Q3i"
     qual_condense_col_name : str = "QUALc"
 
-@pydantic.dataclasses.dataclass
-class PydanticTrainingArguments(TrainingArguments):
-    pass
+class MyTrainingArguments(BaseModel):
+    output_dir : str = '.'
+    
+    per_device_train_batch_size : int = 8
+    per_device_eval_batch_size : int = 8
+
+    gradient_accumulation_steps : int = 1
+
+    eval_strategy : str = 'epoch'
+    eval_steps : Optional[int] = None
+    eval_on_start : bool = False
+
+    learning_rate : float = 5e-5
+    weight_decay : float = 0.0
+
+    num_train_epochs : int = 1
+    max_steps : int = -1
+
+    warmup_ratio : float = 0.0
+    warmup_steps : int = 0
+
+    log_level : Optional[str] = 'passive'
+
+    logging_dir : Optional[str] = None
+    logging_strategy : str = 'no'
+    logging_first_step : bool = False
+    logging_steps : float = 500
+
+    save_strategy : str = 'no'
+    save_steps : float = 500
+    save_total_limit : Optional[int] = None
+
+    no_cuda : bool = False
+    use_cpu : bool = False
+    use_mps_device : bool = False
+
+    seed : int = 43
 
 class TrainConfig(Config):
 
@@ -87,17 +121,10 @@ class TrainConfig(Config):
         'matthews_correlation'
     ]
 
-    trainer_args : PydanticTrainingArguments = PydanticTrainingArguments(
-        output_dir='hf_output_dir',
-        eval_strategy='epoch',
-        save_strategy='no',
-        evaluation_strategy='epoch'
-    )
+    trainer_args : MyTrainingArguments = MyTrainingArguments()
 
 
 class TrainConfigNoCLI(TrainConfig):
     '''This is a hack used to get around the fact that you can't instantiate
     CLI pydantic-settings classes in jupyter notebooks'''
     model_config = SettingsConfigDict(cli_parse_args=False)
-
-    
