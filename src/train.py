@@ -1,8 +1,9 @@
 import mlflow.types
-from config import TrainConfig, TrainerConfig, TrainConfigNoCLI
 
-import pandas as pd
+from config import TrainConfig, TrainConfigNoCLI
+
 import numpy as np
+
 import datasets
 import evaluate
 from transformers import (AutoTokenizer, 
@@ -11,27 +12,14 @@ from transformers import (AutoTokenizer,
                           Trainer,
                           pipeline)
 import mlflow
-from dataclasses import dataclass
-import ray.train.huggingface.transformers
-from transformers import TrainerCallback, TrainerState, TrainerControl
+
+from dataclasses import asdict, dataclass
 
 import logging
 from typing import Union, Callable, Any
-from ray.air.integrations.mlflow import setup_mlflow
-from ray import train as raytrain
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
-
-class MyCallback(TrainerCallback):
-
-    def on_evaluate(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
-        print('on_evaluate')
-        metrics = {}
-        for log in state.log_history:
-            print(log)
-            metrics.update(log)
-        raytrain.report(metrics=metrics)
 
 def load_train_dataset(cfg : TrainConfig) -> datasets.Dataset:
     log.info(f'Loading dataset from {cfg.dataset_path}')
@@ -83,9 +71,9 @@ def split_train_eval(train_ds : datasets.Dataset, eval_size : float, random_seed
     return split['train'], split['test']
 
 @dataclass
-class TrainResult:
-    mlflow_run : Any = None # TODO: need a type for this
-    trainer : Trainer = None
+class TrainingResult:
+    trainer : Trainer
+    mlflow_run : Any
 
 def train_model(
     cfg : TrainConfig,
@@ -94,16 +82,12 @@ def train_model(
     train_ds : datasets.Dataset,
     eval_ds : datasets.Dataset,
     compute_metrics_func : Callable[[dict], dict],
-) -> TrainResult:
+) -> None:
 
     log.info(f'Using mlflow experiment {cfg.mlflow_experiment_name}')
-    print(mlflow)
-    print(mlflow.get_tracking_uri())
-    print(mlflow.get_artifact_uri())
-    # # print(mlflow)
-    # mlflow.set_tracking_uri('~/proj/nlp_qual/nlp-qual-um/mlruns')
-    # print(mlflow.get_tracking_uri())
-    # mlflow.set_experiment(cfg.mlflow_experiment_name)
+    log.info(f'Using mlflow tracking uri {cfg.mlflow_tracking_uri}')
+    mlflow.set_tracking_uri(cfg.mlflow_tracking_uri)
+    mlflow.set_experiment(cfg.mlflow_experiment_name)
 
     trainer = Trainer(
         model=model,
@@ -112,25 +96,18 @@ def train_model(
         eval_dataset=eval_ds,
         compute_metrics=compute_metrics_func
     )
-    # trainer.add_callback(MyCallback)
-    # callback = ray.train.huggingface.transformers.RayTrainReportCallback()
-    # trainer.add_callback(callback)
-    # trainer = ray.train.huggingface.transformers.prepare_trainer(trainer)
-    # with mlflow.start_run() as run:
-    # log.info(f'Mlflow run name: {run.info.run_name}')
-    # log.info(f'Mlflow run id: {run.info.run_id}')
-    # log.info(f'MLflow artifact URI: {run.info.artifact_uri}')
-    # Log all the things
-    mlflow.log_param('TrainConfig', cfg.model_dump())
-    mlflow.log_param('TrainerArgs', cfg.trainer_args.model_dump())
-    mlflow.log_text(cfg.model_dump_json(), 'TrainConfig.json')
-    mlflow.log_text(cfg.trainer_args.model_dump_json(), 'TrainerArgs.json')
 
-    # train
-    trainer.train()    
-    # return TrainResult(mlflow_run=run, trainer=trainer)
+    with mlflow.start_run() as run:
+        # mlflow.log_params(cfg.model_dump())
+        # mlflow.log_param('TrainConfig', cfg.model_dump())
+        # mlflow.log_param('TrainerArgs', asdict(cfg.trainer_args))
+        mlflow.log_text(cfg.model_dump_json(), 'TrainConfig.json')
 
-def log_mlflow_model(res : TrainResult, tok : AutoTokenizer):
+        # train
+        trainer.train()   
+    return TrainingResult(trainer=trainer, mlflow_run=run)
+
+def log_mlflow_model(res, tok : AutoTokenizer):
     tuned_pipeline = pipeline(
         task='text-classification',
         model=res.trainer.model,
@@ -147,7 +124,8 @@ def log_mlflow_model(res : TrainResult, tok : AutoTokenizer):
     with mlflow.start_run(run_id=res.mlflow_run.info.run_id):
         model_info = mlflow.transformers.log_model(
             transformers_model=tuned_pipeline,
-            artifact_path=cfg.trainer_args.output_dir,
+            # artifact_path=cfg.trainer_args.output_dir,
+            artifact_path='model',
             signature=signature,
             input_example=['pass in a string','no really, do it'],
             model_config={}
@@ -167,16 +145,9 @@ def train(cfg : Union[TrainConfig,dict[str, Any]]):
         # probably coming from Ray
         cfg = TrainConfig.model_validate(cfg)
 
-    log.setLevel(cfg.log_level)
+    log.setLevel(cfg.script_log_level)
     log.info('Training model...')
     log.debug(f'Parameters:\n{cfg.model_dump()}')
-
-    setup_mlflow(
-        config=cfg.model_dump(),
-        tracking_uri='~/proj/nlp_qual/nlp-qual-um/mlruns',
-        experiment_name=cfg.mlflow_experiment_name,
-        create_experiment_if_not_exists=True
-    )
 
     # load dataset
     ds_train = load_train_dataset(cfg)
@@ -197,7 +168,7 @@ def train(cfg : Union[TrainConfig,dict[str, Any]]):
     # get the model
     model = get_model(model_str)
 
-    training_args = TrainingArguments(**cfg.trainer_args.model_dump())
+    training_args = cfg.trainer_args
     log.info(f'HF Output directory: {cfg.trainer_args.output_dir}')
     log.debug(f'Training args:\n{training_args}')
 
@@ -205,8 +176,8 @@ def train(cfg : Union[TrainConfig,dict[str, Any]]):
 
     ds_tok_train, ds_tok_eval = split_train_eval(ds_train_tok, cfg.eval_size, cfg.random_seed)
     if cfg.smoke_test:
-        ds_tok_train = ds_tok_train.shuffle(seed=cfg.random_seed).select(range(100)) # small number for rapid testing
-        ds_tok_eval = ds_tok_eval.shuffle(seed=cfg.random_seed).select(range(25))
+        ds_tok_train = ds_tok_train.shuffle(seed=cfg.random_seed).select(range(cfg.smoke_test_train_size)) # small number for rapid testing
+        ds_tok_eval = ds_tok_eval.shuffle(seed=cfg.random_seed).select(range(cfg.smoke_test_eval_size))
 
     training_res = train_model(cfg, model, training_args, ds_tok_train, ds_tok_eval, compute_metrics)
     if cfg.log_mlflow_model:
@@ -214,10 +185,6 @@ def train(cfg : Union[TrainConfig,dict[str, Any]]):
         if cfg.validate_mlflow_model:
             validate_mlflow_model(model_info=model_info)
 
-    return {'eval_accuracy': 0.69698}
-
-    
-
 if __name__ == '__main__':
-    cfg = TrainerConfig()
-    train(cfg.train_config)
+    cfg = TrainConfig(_env_file='.env')
+    train(cfg)
