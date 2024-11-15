@@ -9,11 +9,14 @@ if __name__ == '__main__':
 
     cfg = cfg.model_dump()
     params = {
-        'num_train_epochs': np.random.randint(1, 5),
         'learning_rate': loguniform.rvs(1e-5, 1e-1),
-        'weight_decay': uniform.rvs(),
-        'warmup_steps': np.random.randint(0, 100)
+        'per_device_train_batch_size': np.random.choice([8, 16, 32]),
+        'num_train_epochs': np.random.randint(1, 5),
+        'warmup_ratio': np.random.uniform(0, 0.1),
+        'weight_decay': np.random.uniform(0, 0.01),
+        'gradient_clipping': np.random.uniform(1.0, 5.0),
     }
+    cfg['tokenizer_max_length'] = np.random.choice([128, 256, 512])
     print('Chosen parameters:')
     print(params)
 
