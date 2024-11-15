@@ -19,7 +19,6 @@ if __name__ == '__main__':
 
     cfg['trainer_args'].update(params)
     cfg = TrainConfig.model_validate(cfg)
-    cfg.smoke_test = True
     
     train(cfg)
 
