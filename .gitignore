@@ -5,3 +5,4 @@ mlartifacts/
 ray_results/
 hf_training_outputs/
 runs/
+slurm/output_files
