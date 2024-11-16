@@ -17,7 +17,7 @@ do
 	fi
 	sleep 3
 done
-
+sleep 3
 echo "SSH port forward to node $node on port 5000..."
 ssh -f -N -L 5000:localhost:5000 $node
 echo "Done."
