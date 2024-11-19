@@ -20,6 +20,7 @@ done
 sleep 3
 echo "SSH port forward to node $node on port 5000..."
 ssh -f -N -L 5000:localhost:5000 $node
+#ssh -N -L 5000:localhost:5000 $node
 echo "Done."
 
 #squeue -j $jobid -o "%N"

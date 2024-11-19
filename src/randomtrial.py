@@ -1,6 +1,11 @@
+print('Starting imports')
+print('config...')
 from config import TrainConfig
+print('numpy...')
 import numpy as np
+print('scipy...')
 from scipy.stats import loguniform, uniform
+print('train...')
 from train import train
 
 if __name__ == '__main__':

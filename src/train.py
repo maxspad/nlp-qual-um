@@ -157,6 +157,7 @@ def train(cfg : Union[TrainConfig,dict[str, Any]]):
 
     # the model we will be using
     model_str = cfg.hf_model_family + '/' + cfg.hf_model_name
+    print(model_str)
     log.info(f'Model is: {model_str}')
 
     # get the tokenizer and tokenize
