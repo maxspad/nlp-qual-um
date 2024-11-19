@@ -1,8 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import BaseModel
 from typing import Union, Literal, Optional, Any, List, Callable 
-from transformers import TrainingArguments
-import pydantic.dataclasses
 
 class Config(BaseSettings):
     model_config = SettingsConfigDict(cli_parse_args=True,

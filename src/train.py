@@ -1,20 +1,28 @@
-import mlflow.types
-
+print('train: starting imports...')
+print('config')
 from config import TrainConfig, TrainConfigNoCLI
 
+print('numpy')
 import numpy as np
 
+print('hf datasets')
 import datasets
+print('hf evaluate')
 import evaluate
+print('hf transformers')
 from transformers import (AutoTokenizer, 
                           AutoModelForSequenceClassification,
                           TrainingArguments,
                           Trainer,
                           pipeline)
+print('mlflow')
 import mlflow
 
+print('dataclasses')
 from dataclasses import asdict, dataclass
 
+print('logging')
+print('typing')
 import logging
 from typing import Union, Callable, Any
 
@@ -157,7 +165,6 @@ def train(cfg : Union[TrainConfig,dict[str, Any]]):
 
     # the model we will be using
     model_str = cfg.hf_model_family + '/' + cfg.hf_model_name
-    print(model_str)
     log.info(f'Model is: {model_str}')
 
     # get the tokenizer and tokenize
