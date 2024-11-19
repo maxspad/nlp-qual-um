@@ -103,6 +103,7 @@ class TrainConfig(Config):
    
     mlflow_tracking_uri : str = './mlruns/'
     mlflow_experiment_name : str = 'scratch'
+    mlflow_run_name : str = 'train-run'
     
     reload_model_after_training : bool = False
     log_mlflow_model : bool = False

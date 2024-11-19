@@ -4,8 +4,7 @@ echo "Job ID: $SLURM_JOBID"
 echo "Array task ID: $SLURM_ARRAY_TASK_ID"
 
 echo "Starting..."
-python -u src/randomtrial.py $JOB_EXTRA_ARGS
+export MLFLOW_RUN_NAME="$SLURM_JOBID-$SLURM_ARRAY_TASK_ID"
+echo "Run name: $MLFLOW_RUN_NAME"
 
-# srun python src/train.py \
-#     --hf_model_family='google-bert' \
-#     --hf_model_name='bert-base-uncased'
+python -u src/randomtrial.py $JOB_EXTRA_ARGS

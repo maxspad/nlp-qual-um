@@ -10,9 +10,10 @@ module load python/3.11
 source venv/bin/activate
 
 # Set a date prefix for the mlflow experiment
-date_prefix=$(date +%Y-%m-%d_%M-%H-%S)
+date_prefix=$(date +%Y-%m-%d_%H-%M-%S)
 echo "date_prefix=$date_prefix"
-export MLFLOW_EXPERIMENT_NAME=${date_prefix}_rsearch
+mlflow_exp_suffix=rsearch
+export MLFLOW_EXPERIMENT_NAME=${date_prefix}_$mlflow_exp_suffix
 
 # Set mlflow storage location
 export MLFLOW_TRACKING_URI="sqlite:///$SCRATCH/mlruns.db"
@@ -30,6 +31,10 @@ export TRAINER_ARGS__LOG_LEVEL="debug"
 export HF_MODEL_FAMILY='google-bert'
 export HF_MODEL_NAME='bert-base-uncased'
 
+# Create mlflow experiment
+# will use MLFLOW_TRACKING_URI from above 
+echo "Creating experiment $MLFLOW_EXPERIMENT_NAME"
+mlflow experiments create -n $MLFLOW_EXPERIMENT_NAME
 
 #python -c "from src import config; print(config.TrainConfig())"
 echo "Launching batch job..."
@@ -41,13 +46,14 @@ echo "Extra args are $JOB_EXTRA_ARGS"
 
 sbatch -v \
     --output=$slurm_output_dir/%A-%a.log \
-    --partition=debug \
+    --partition=gpu \
     --time=00-00:15:00 \
     --cpus-per-task=2 \
+    --gpus=1 \
     --nodes=1 \
-    --ntasks-per-node=1 \
     --mem=16G \
-    util/rtrial_exp.sbatch.sh
+    --array=0-2%5 \
+    util/rsearch_exp.sbatch.sh
 
 
 

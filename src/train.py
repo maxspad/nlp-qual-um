@@ -105,8 +105,11 @@ def train_model(
         compute_metrics=compute_metrics_func
     )
 
-    with mlflow.start_run() as run:
+    with mlflow.start_run(run_name=cfg.mlflow_run_name) as run:
         # mlflow.log_params(cfg.model_dump())
+        to_log = cfg.model_dump()
+        del to_log['trainer_args']
+        mlflow.log_params(to_log)
         # mlflow.log_param('TrainConfig', cfg.model_dump())
         # mlflow.log_param('TrainerArgs', asdict(cfg.trainer_args))
         mlflow.log_text(cfg.model_dump_json(), 'TrainConfig.json')
