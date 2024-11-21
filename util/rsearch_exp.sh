@@ -28,8 +28,10 @@ export SCRIPT_LOG_LEVEL="DEBUG"
 export TRAINER_ARGS__LOG_LEVEL="debug"
 
 # Choose model family
-export HF_MODEL_FAMILY='google-bert'
-export HF_MODEL_NAME='bert-base-uncased'
+# export HF_MODEL_FAMILY='google-bert'
+# export HF_MODEL_NAME='bert-base-uncased'
+export HF_MODEL_FAMILY='emilyalsentzer'
+export HF_MODEL_NAME='Bio_ClinicalBERT'
 
 # Create mlflow experiment
 # will use MLFLOW_TRACKING_URI from above 
@@ -52,7 +54,7 @@ sbatch -v \
     --gpus=1 \
     --nodes=1 \
     --mem=16G \
-    --array=0-2%5 \
+    --array=0-100%5 \
     util/rsearch_exp.sbatch.sh
 
 

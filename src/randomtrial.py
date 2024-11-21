@@ -19,7 +19,6 @@ if __name__ == '__main__':
         'num_train_epochs': np.random.randint(1, 5),
         'warmup_ratio': np.random.uniform(0, 0.1),
         'weight_decay': np.random.uniform(0, 0.01),
-        'gradient_clipping': np.random.uniform(1.0, 5.0),
     }
     cfg['tokenizer_max_length'] = np.random.choice([128, 256, 512])
     print('Chosen parameters:')
