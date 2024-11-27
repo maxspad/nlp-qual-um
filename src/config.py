@@ -7,6 +7,22 @@ class Config(BaseSettings):
                                       nested_model_default_partial_update=True,
                                       env_nested_delimiter='__')
 
+class UMMakeDatasetConfig(Config):
+    
+    log_level : str = "INFO"
+    random_seed : int = 43
+
+    # inputs
+    mapping_file : str = 'conf/mapping.xlsx'
+    data_dir : str = 'data/interim/um/'
+
+    text_col_split_char : str = "|"
+    text_col_join_char : str = " "
+    text_blank_repl_str : str = ""
+    
+    # output
+    output_file : str = 'data/processed/um.csv'
+
 class MakeDataSetConfig(Config):
 
     log_level : str = "INFO"
