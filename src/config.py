@@ -16,12 +16,34 @@ class UMMakeDatasetConfig(Config):
     mapping_file : str = 'conf/mapping.xlsx'
     data_dir : str = 'data/interim/um/'
 
+    text_col : str = 'text'
     text_col_split_char : str = "|"
     text_col_join_char : str = " "
-    text_blank_repl_str : str = ""
+    text_col_blank_repl_str : str = ""
+    text_all_blank_repl_str : str = "blank"
     
     # output
     output_file : str = 'data/processed/um.csv'
+
+class UMRunModelConfig(Config):
+    log_level : str = "INFO"
+    random_seed : int = 43
+    smoke_test : bool = False
+
+    # inputs
+    data_file : str = 'data/processed/um.csv'
+    text_col : str = 'text'
+    target_col : str = 'qual'
+
+    # model
+    hf_model_name : str = 'maxspad/nlp-qual-qual'
+    hf_model_max_length : int = 512
+    hf_model_device : str = 'mps'
+    hf_eval_batch_size : int = 16
+
+    # output
+    output_file_prefix : str = f'data/processed/preds_'
+
 
 class MakeDataSetConfig(Config):
 

@@ -8,3 +8,5 @@ runs/
 slurm/output_files
 venv/
 mlruns.db
+.DS_Store
+

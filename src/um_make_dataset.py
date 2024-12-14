@@ -42,7 +42,7 @@ def main(cfg : UMMakeDatasetConfig):
                 df[c] = df.iloc[:,r[c]]
             else:
                 cols_to_concat = [int(x) for x in r[c].split(cfg.text_col_split_char)]
-                df_to_concat = df.iloc[:, cols_to_concat].fillna(cfg.text_blank_repl_str).astype('str')
+                df_to_concat = df.iloc[:, cols_to_concat].fillna(cfg.text_col_blank_repl_str).astype('str')
                 df[c] = df_to_concat.agg(cfg.text_col_join_char.join, axis=1)
         
         final_cols = simple_cols + concat_cols
@@ -52,6 +52,13 @@ def main(cfg : UMMakeDatasetConfig):
         dfs.append(final_df)
 
     dataset = pd.concat(dfs, axis=0)
+
+    white_space_only = dataset[cfg.text_col].str.strip().str.len() == 0
+    n_white_space_only = white_space_only.sum()
+    pct_white_space_only = n_white_space_only / len(dataset) * 100
+    log.info(f'There are {n_white_space_only} ({pct_white_space_only:.2f}%) whitespace-only texts. Replacing with "{cfg.text_all_blank_repl_str}"')
+    dataset.loc[white_space_only, cfg.text_col] = cfg.text_all_blank_repl_str
+    
     log.info(f'Writing dataset to {cfg.output_file}')
     log.info(f'Dataset size: {dataset.shape}')
     dataset.to_csv(cfg.output_file)
